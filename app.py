@@ -1,11 +1,7 @@
 import streamlit as st
 import cv2
 import numpy as np
-import mediapipe as mp
 
-# ==========================
-# PAGE CONFIG
-# ==========================
 st.set_page_config(
     page_title="Face Detection",
     page_icon="📷",
@@ -13,9 +9,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ==========================
-# HIDE STREAMLIT ELEMENTS
-# ==========================
 st.markdown("""
 <style>
 #MainMenu {visibility:hidden;}
@@ -27,21 +20,17 @@ header {visibility:hidden;}
 
 st.title("Face Detection")
 
-# ==========================
-# MEDIAPIPE FACE DETECTION
-# ==========================
-mp_face_detection = mp.solutions.face_detection
-mp_drawing = mp.solutions.drawing_utils
+face_cascade = cv2.CascadeClassifier(
+    cv2.data.haarcascades +
+    "haarcascade_frontalface_default.xml"
+)
 
-# ==========================
-# CAMERA INPUT
-# ==========================
-image_file = st.camera_input("Ambil Foto")
+uploaded_image = st.camera_input("Ambil Foto")
 
-if image_file is not None:
+if uploaded_image is not None:
 
     file_bytes = np.asarray(
-        bytearray(image_file.read()),
+        bytearray(uploaded_image.read()),
         dtype=np.uint8
     )
 
@@ -50,42 +39,39 @@ if image_file is not None:
         cv2.IMREAD_COLOR
     )
 
-    image_rgb = cv2.cvtColor(
+    # Resize agar deteksi lebih mudah
+    h, w = image.shape[:2]
+
+    if w > 800:
+        scale = 800 / w
+        image = cv2.resize(
+            image,
+            (800, int(h * scale))
+        )
+
+    gray = cv2.cvtColor(
         image,
-        cv2.COLOR_BGR2RGB
+        cv2.COLOR_BGR2GRAY
     )
 
-    detected_faces = 0
+    gray = cv2.equalizeHist(gray)
 
-    with mp_face_detection.FaceDetection(
-        model_selection=1,
-        min_detection_confidence=0.5
-    ) as face_detection:
+    faces = face_cascade.detectMultiScale(
+        gray,
+        scaleFactor=1.05,
+        minNeighbors=3,
+        minSize=(30, 30)
+    )
 
-        results = face_detection.process(image_rgb)
+    for (x, y, fw, fh) in faces:
 
-        if results.detections:
-
-            h, w, _ = image.shape
-
-            for detection in results.detections:
-
-                bbox = detection.location_data.relative_bounding_box
-
-                x = int(bbox.xmin * w)
-                y = int(bbox.ymin * h)
-                bw = int(bbox.width * w)
-                bh = int(bbox.height * h)
-
-                cv2.rectangle(
-                    image,
-                    (x, y),
-                    (x + bw, y + bh),
-                    (0, 255, 0),
-                    3
-                )
-
-                detected_faces += 1
+        cv2.rectangle(
+            image,
+            (x, y),
+            (x + fw, y + fh),
+            (0, 255, 0),
+            3
+        )
 
     image_rgb = cv2.cvtColor(
         image,
@@ -94,7 +80,7 @@ if image_file is not None:
 
     st.image(
         image_rgb,
-        caption=f"Terdeteksi {detected_faces} wajah",
+        caption=f"Terdeteksi {len(faces)} wajah",
         use_container_width=True
     )
 

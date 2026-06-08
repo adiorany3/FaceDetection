@@ -1,10 +1,7 @@
 import streamlit as st
 import cv2
-from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
+import numpy as np
 
-# ==========================
-# CONFIG PAGE
-# ==========================
 st.set_page_config(
     page_title="Face Detection",
     page_icon="📷",
@@ -12,9 +9,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ==========================
-# HIDE STREAMLIT BRANDING
-# ==========================
+# Hilangkan elemen Streamlit
 st.markdown("""
 <style>
 #MainMenu {visibility:hidden;}
@@ -24,77 +19,60 @@ header {visibility:hidden;}
 </style>
 """, unsafe_allow_html=True)
 
-st.title("Realtime Face Detection")
+st.title("Face Detection")
 
-# ==========================
-# LOAD HAARCASCADE
-# ==========================
+# Load Haar Cascade
 face_cascade = cv2.CascadeClassifier(
-    cv2.data.haarcascades +
-    "haarcascade_frontalface_default.xml"
+    cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
 )
 
-# ==========================
-# WEBRTC CONFIG
-# ==========================
-RTC_CONFIGURATION = RTCConfiguration(
-    {
-        "iceServers": [
-            {
-                "urls": [
-                    "stun:stun.l.google.com:19302"
-                ]
-            }
-        ]
-    }
-)
+# Ambil gambar dari kamera
+image = st.camera_input("Ambil Foto")
 
-# ==========================
-# FACE DETECTOR
-# ==========================
-class FaceDetector(VideoProcessorBase):
+if image is not None:
 
-    def recv(self, frame):
+    file_bytes = np.asarray(
+        bytearray(image.read()),
+        dtype=np.uint8
+    )
 
-        img = frame.to_ndarray(format="bgr24")
+    img = cv2.imdecode(
+        file_bytes,
+        cv2.IMREAD_COLOR
+    )
 
-        gray = cv2.cvtColor(
+    gray = cv2.cvtColor(
+        img,
+        cv2.COLOR_BGR2GRAY
+    )
+
+    faces = face_cascade.detectMultiScale(
+        gray,
+        scaleFactor=1.1,
+        minNeighbors=5,
+        minSize=(30, 30)
+    )
+
+    # Kotak hijau
+    for (x, y, w, h) in faces:
+        cv2.rectangle(
             img,
-            cv2.COLOR_BGR2GRAY
+            (x, y),
+            (x + w, y + h),
+            (0, 255, 0),
+            3
         )
 
-        faces = face_cascade.detectMultiScale(
-            gray,
-            scaleFactor=1.1,
-            minNeighbors=5,
-            minSize=(30, 30)
-        )
+    img_rgb = cv2.cvtColor(
+        img,
+        cv2.COLOR_BGR2RGB
+    )
 
-        for (x, y, w, h) in faces:
-
-            cv2.rectangle(
-                img,
-                (x, y),
-                (x + w, y + h),
-                (0, 255, 0),  # hijau
-                2
-            )
-
-        return img
-
-# ==========================
-# START CAMERA
-# ==========================
-webrtc_streamer(
-    key="face-detection",
-    rtc_configuration=RTC_CONFIGURATION,
-    video_processor_factory=FaceDetector,
-    media_stream_constraints={
-        "video": True,
-        "audio": False
-    },
-    async_processing=True,
-)
+    st.image(
+        img_rgb,
+        caption=f"Terdeteksi {len(faces)} wajah",
+        use_container_width=True
+    )
 
 st.markdown("---")
 st.markdown(

@@ -86,6 +86,6 @@ if uploaded_image is not None:
 
 st.markdown("---")
 st.markdown(
-    "<center><b>Developed by Galuh Adi Insani/b></center>",
+    "<center><b>Developed by Galuh Adi Insani</b></center>",
     unsafe_allow_html=True
 )

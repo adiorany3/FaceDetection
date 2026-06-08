@@ -1,20 +1,17 @@
 import streamlit as st
 import cv2
 import numpy as np
+import os
+import urllib.request
 
-# =========================
-# PAGE CONFIG
-# =========================
-st.set_page_config(
-    page_title="Face Detection",
-    page_icon="📷",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
+MODEL_FILE = "face_detection_yunet_2023mar.onnx"
+MODEL_URL = "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx"
 
-# =========================
-# HIDE STREAMLIT ELEMENTS
-# =========================
+if not os.path.exists(MODEL_FILE):
+    urllib.request.urlretrieve(MODEL_URL, MODEL_FILE)
+
+st.set_page_config(page_title="Face Detection", page_icon="📷", layout="wide")
+
 st.markdown("""
 <style>
 #MainMenu {visibility:hidden;}
@@ -24,126 +21,62 @@ header {visibility:hidden;}
 </style>
 """, unsafe_allow_html=True)
 
-# =========================
-# TITLE
-# =========================
-st.title("Face Detection")
+st.title("Face Detection (YuNet)")
 
-# =========================
-# LOAD FACE CASCADE
-# =========================
-face_cascade = cv2.CascadeClassifier(
-    cv2.data.haarcascades +
-    "haarcascade_frontalface_default.xml"
-)
-
-# =========================
-# CAMERA INPUT
-# =========================
 uploaded_image = st.camera_input("Ambil Foto")
 
 if uploaded_image is not None:
+    file_bytes = np.asarray(bytearray(uploaded_image.read()), dtype=np.uint8)
+    image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
-    # Convert image bytes
-    file_bytes = np.asarray(
-        bytearray(uploaded_image.read()),
-        dtype=np.uint8
-    )
-
-    image = cv2.imdecode(
-        file_bytes,
-        cv2.IMREAD_COLOR
-    )
-
-    # =========================
-    # RESIZE IMAGE
-    # =========================
     h, w = image.shape[:2]
 
-    if w > 1000:
-        ratio = 1000 / w
-        image = cv2.resize(
-            image,
-            (1000, int(h * ratio))
-        )
-
-    # =========================
-    # PREPROCESSING
-    # =========================
-    gray = cv2.cvtColor(
-        image,
-        cv2.COLOR_BGR2GRAY
+    detector = cv2.FaceDetectorYN.create(
+        MODEL_FILE,
+        "",
+        (w, h),
+        score_threshold=0.7,
+        nms_threshold=0.3,
+        top_k=5000
     )
 
-    # Improve contrast
-    gray = cv2.equalizeHist(gray)
+    detector.setInputSize((w, h))
 
-    # Reduce noise
-    gray = cv2.GaussianBlur(
-        gray,
-        (5, 5),
-        0
-    )
+    _, faces = detector.detect(image)
 
-    # =========================
-    # FACE DETECTION
-    # =========================
-    faces = face_cascade.detectMultiScale(
-        gray,
-        scaleFactor=1.03,
-        minNeighbors=4,
-        minSize=(40, 40),
-        flags=cv2.CASCADE_SCALE_IMAGE
-    )
+    count = 0
 
-    # =========================
-    # DRAW RESULTS
-    # =========================
-    for (x, y, fw, fh) in faces:
+    if faces is not None:
+        for face in faces:
+            x, y, fw, fh = face[:4].astype(int)
 
-        # Green rectangle
-        cv2.rectangle(
-            image,
-            (x, y),
-            (x + fw, y + fh),
-            (0, 255, 0),
-            4
-        )
+            cv2.rectangle(
+                image,
+                (x, y),
+                (x + fw, y + fh),
+                (0, 255, 0),
+                3
+            )
 
-        # Label
-        cv2.putText(
-            image,
-            "Face",
-            (x, y - 10),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.8,
-            (0, 255, 0),
-            2
-        )
+            cv2.putText(
+                image,
+                "Face",
+                (x, y - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                (0, 255, 0),
+                2
+            )
+            count += 1
 
-    # Convert BGR -> RGB
-    image_rgb = cv2.cvtColor(
-        image,
-        cv2.COLOR_BGR2RGB
-    )
+    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-    # =========================
-    # SHOW RESULT
-    # =========================
     st.image(
         image_rgb,
-        caption=f"Terdeteksi {len(faces)} wajah",
+        caption=f"Terdeteksi {count} wajah",
         use_container_width=True
     )
 
-    if len(faces) == 0:
-        st.warning(
-            "Wajah tidak terdeteksi. Coba gunakan pencahayaan yang lebih terang, posisi wajah menghadap kamera, dan jarak yang tidak terlalu jauh."
-        )
-
-# =========================
-# FOOTER
-# =========================
 st.markdown("---")
 st.markdown(
     "<center><b>Developed by Galuh Adi Insani</b></center>",
